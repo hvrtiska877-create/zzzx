@@ -1,44 +1,85 @@
 # SMART (Self-Managed Autonomous Response Tool)
 
-A practical blueprint for your own ChatGPT-like coding assistant that:
+SMART is a practical foundation for your own ChatGPT-style coding assistant.
 
-- uses **free APIs** for research (DuckDuckGo, Reddit, GitHub)
-- uses a **free LLM endpoint** (for example OpenRouter free-tier models)
-- performs **automatic code verification** with pytest before returning output
+## What SMART does now
 
-## What this gives you
+- uses **free/public web sources** for coding context:
+  - Google Programmable Search (free tier, optional)
+  - Reddit search
+  - GitHub search API
+  - DuckDuckGo instant answer fallback
+- uses a **free-tier compatible LLM endpoint** via OpenAI-compatible API format
+- generates Python + pytest
+- verifies code locally before returning results
+- retries automatically when verification fails
 
-This implementation is a **working foundation**, not a guaranteed "better than every model" system. In practice, quality comes from your prompts, eval loops, tools, and model selection.
+## Quick start
 
-## Setup
+```bash
+python3 -m pip install -r requirements.txt
+python3 -m pip install pytest
+```
 
-1. Install project dependencies.
-2. Export env vars:
+Set required LLM variables:
 
 ```bash
 export SMART_API_KEY="<your-api-key>"
-# optional overrides
+# optional (defaults shown)
 export SMART_API_BASE="https://openrouter.ai/api/v1"
 export SMART_MODEL="meta-llama/llama-3.1-8b-instruct:free"
 ```
 
-3. Run SMART:
+Optional Google source (free tier on Google Programmable Search):
 
 ```bash
-python3 -m smart.cli "write a python function that validates email addresses and include tests"
+export SMART_GOOGLE_API_KEY="<google-api-key>"
+export SMART_GOOGLE_CX="<programmable-search-engine-id>"
 ```
+
+Run SMART:
+
+```bash
+python3 -m smart.cli "build a Python URL shortener module with tests" --rounds 4 --out-dir smart_output
+```
+
+Generated artifacts:
+
+- `smart_output/candidate.py`
+- `smart_output/test_candidate.py`
+- `smart_output/verification.txt`
+
+## Put this into your GitHub repo
+
+If you already created a GitHub repository, run:
+
+```bash
+./tools/publish_to_github.sh git@github.com:<your-user>/<your-repo>.git main
+```
+
+Or with HTTPS:
+
+```bash
+./tools/publish_to_github.sh https://github.com/<your-user>/<your-repo>.git main
+```
+
+This script sets (or updates) `origin` and pushes your branch.
 
 ## Architecture
 
-- `smart/research.py` — queries free/public endpoints for context.
-- `smart/llm.py` — OpenAI-compatible chat API wrapper.
-- `smart/agent.py` — orchestration loop (research → generate → verify → repair).
-- `smart/verifier.py` — executes generated code/tests and returns status.
-- `smart/cli.py` — simple command-line interface.
+- `smart/research.py`: context collector from Google/Reddit/GitHub/DuckDuckGo
+- `smart/llm.py`: OpenAI-compatible chat client
+- `smart/agent.py`: research → generation → verification → repair loop
+- `smart/verifier.py`: executes generated code/tests and captures results
+- `smart/cli.py`: CLI that writes code/test/verification outputs
+- `tools/publish_to_github.sh`: helper to publish to your GitHub repo
 
-## Next upgrades
+## Important note
 
-- Add retrieval cache and ranking for GitHub/Reddit snippets.
-- Add containerized sandbox for safer code execution.
-- Add benchmark suite (HumanEval/MBPP-like internal tasks).
-- Add multi-model voting (free model ensemble).
+No assistant can honestly guarantee it is always "better" than every other model on every task.
+What you *can* do is make SMART reliably useful by combining:
+
+- high-quality prompts,
+- strong verification,
+- eval benchmarks,
+- and iterative model/tool improvements.

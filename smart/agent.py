@@ -32,17 +32,19 @@ class SMARTAgent:
 
     def solve_python_task(self, prompt: str, max_rounds: int = 3) -> SMARTResponse:
         snippets = self.research.gather(prompt)
-        context = "\n".join([f"[{s.source}] {s.title} :: {s.snippet} ({s.url})" for s in snippets])
+        context = "\n".join(f"[{s.source}] {s.title} :: {s.snippet} ({s.url})" for s in snippets)
 
         system = (
             "You are SMART, an autonomous coding assistant. "
-            "Return python code and pytest tests in fenced blocks: ```python and ```pytest."
+            "Always return two fenced blocks: ```python and ```pytest. "
+            "Tests must import from candidate.py."
         )
 
         current_prompt = (
             f"User request:\n{prompt}\n\n"
-            f"Web context from free sources (google-alternative, reddit, github):\n{context}\n\n"
-            "Write production-ready Python code and tests."
+            "Use these web references (Google, Reddit, GitHub and fallback sources) for hints only:\n"
+            f"{context}\n\n"
+            "Write clean Python code in candidate.py and pytest tests in test_candidate.py."
         )
 
         last_verification: VerificationResult | None = None
@@ -58,17 +60,12 @@ class SMARTAgent:
             if last_verification.ok:
                 break
             current_prompt = (
-                f"Fix failing code. Prior attempt failed with:\n"
-                f"command: {last_verification.command}\n"
-                f"stdout:\n{last_verification.stdout}\n"
-                f"stderr:\n{last_verification.stderr}\n"
-                "Return corrected python and pytest blocks only."
+                "Your previous solution failed verification. Fix it.\n"
+                f"Command: {last_verification.command}\n"
+                f"Stdout:\n{last_verification.stdout}\n"
+                f"Stderr:\n{last_verification.stderr}\n"
+                "Return only corrected ```python and ```pytest fenced blocks."
             )
 
         assert last_verification is not None
-        return SMARTResponse(
-            final_code=code,
-            tests=tests,
-            verification=last_verification,
-            rationale=response_text,
-        )
+        return SMARTResponse(final_code=code, tests=tests, verification=last_verification, rationale=response_text)

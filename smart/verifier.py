@@ -16,8 +16,9 @@ class VerificationResult:
 
 
 class CodeVerifier:
-    def __init__(self, python_bin: str = "python3") -> None:
+    def __init__(self, python_bin: str = "python3", timeout_sec: int = 120) -> None:
         self.python_bin = python_bin
+        self.timeout_sec = timeout_sec
 
     def verify_python(self, code: str, test_code: str | None = None) -> VerificationResult:
         with tempfile.TemporaryDirectory(prefix="smart_verify_") as td:
@@ -25,24 +26,23 @@ class CodeVerifier:
             main_file = root / "candidate.py"
             main_file.write_text(code, encoding="utf-8")
 
-            command = f"{self.python_bin} {main_file.name}"
-            test_file = None
             if test_code:
                 test_file = root / "test_candidate.py"
                 test_file.write_text(test_code, encoding="utf-8")
-                command = f"{self.python_bin} -m pytest -q {test_file.name}"
+                cmd = [self.python_bin, "-m", "pytest", "-q", test_file.name]
+            else:
+                cmd = [self.python_bin, main_file.name]
 
             proc = subprocess.run(
-                command,
+                cmd,
                 cwd=root,
-                shell=True,
                 capture_output=True,
                 text=True,
-                timeout=120,
+                timeout=self.timeout_sec,
             )
             return VerificationResult(
                 ok=proc.returncode == 0,
-                command=command,
+                command=" ".join(cmd),
                 stdout=proc.stdout,
                 stderr=proc.stderr,
                 returncode=proc.returncode,

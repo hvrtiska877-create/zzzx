@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 
 
-USER_AGENT = "SMART/0.1 (+https://example.local)"
+USER_AGENT = "SMART/0.2 (+https://example.local)"
 
 
 @dataclass
@@ -18,15 +19,41 @@ class ResearchSnippet:
 
 
 class ResearchClient:
-    """Collects lightweight public web context from free endpoints."""
+    """Collects lightweight public web context from free/public endpoints."""
 
     def __init__(self, timeout_sec: float = 10.0) -> None:
         self.timeout_sec = timeout_sec
+        self.google_api_key = os.getenv("SMART_GOOGLE_API_KEY")
+        self.google_cx = os.getenv("SMART_GOOGLE_CX")
 
     def _get_json(self, url: str) -> dict:
         req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
         with urllib.request.urlopen(req, timeout=self.timeout_sec) as resp:
             return json.loads(resp.read().decode("utf-8"))
+
+    def search_google(self, query: str, limit: int = 3) -> list[ResearchSnippet]:
+        """Google Programmable Search (has free tier, requires API key + CX)."""
+        if not self.google_api_key or not self.google_cx:
+            raise ValueError("SMART_GOOGLE_API_KEY and SMART_GOOGLE_CX are required for Google search")
+
+        q = urllib.parse.quote(query)
+        url = (
+            "https://www.googleapis.com/customsearch/v1"
+            f"?key={self.google_api_key}&cx={self.google_cx}&q={q}&num={limit}"
+        )
+        payload = self._get_json(url)
+        items = payload.get("items", [])
+        out: list[ResearchSnippet] = []
+        for item in items:
+            out.append(
+                ResearchSnippet(
+                    source="google",
+                    title=item.get("title", "unknown"),
+                    url=item.get("link", ""),
+                    snippet=item.get("snippet", ""),
+                )
+            )
+        return out
 
     def search_github(self, query: str, limit: int = 3) -> list[ResearchSnippet]:
         q = urllib.parse.quote(query)
@@ -97,14 +124,14 @@ class ResearchClient:
 
     def gather(self, query: str, limit_per_source: int = 3) -> list[ResearchSnippet]:
         snippets: list[ResearchSnippet] = []
-        for getter in (self.search_duckduckgo, self.search_reddit, self.search_github):
+        for getter in (self.search_google, self.search_reddit, self.search_github, self.search_duckduckgo):
             try:
                 snippets.extend(getter(query, limit_per_source))
-            except Exception as exc:  # noqa: BLE001 - keep tool resilient
+            except Exception as exc:  # noqa: BLE001
                 snippets.append(
                     ResearchSnippet(
                         source="system",
-                        title=f"{getter.__name__} failed",
+                        title=f"{getter.__name__} unavailable",
                         url="",
                         snippet=str(exc),
                     )
